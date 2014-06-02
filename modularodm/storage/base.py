@@ -150,6 +150,7 @@ class Storage(object):
         """
         alphabet = '23456789abcdefghijkmnpqrstuvwxyz'
         return ''.join(random.sample(alphabet, n))
+        return ''.join(random.sample(alphabet, n))
 
     def _optimistic_insert(self, primary_name, value, n=5):
         """Attempt to insert with randomly generated key until insert
