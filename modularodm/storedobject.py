@@ -317,7 +317,8 @@ class StoredObject(object):
             )
             data[field_name] = field_value
 
-        data['_version'] = self._version
+        #TODO(asmacdo) _fields are reserved by couch. Uncomment _version for mongo
+        #data['_version'] = self._version
         if not clone and self.__backrefs:
             data['__backrefs'] = self.__backrefs
 
