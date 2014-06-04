@@ -38,17 +38,43 @@ class CouchStorage(Storage):
         if 'type' not in value:
             value['type'] = self.collection
 
-        print value
         self.db.save(value)
 
     def find(self, query=None, **kwargs):
-        query = '_design/username/_view/basicsearch'
-        #TODO if kwarge[key]
-        return self.db.view(query, key=kwargs.get('key'), field='username')
+        """
+
+        :param query: a Q object containing attribute, operator, argument
+        :param kwargs:
+        :return: results of the query
+        """
+        return self.db.query(self._translate_query(query))
+
 
     def update(self, query, data):
         pass
-        #couch_query = self._translate_query(query)
+
+    def _translate_query(self, query=None, couch_query=None):
+        """
+        Convert a Q object to appropriate javascript for a couchdb map function
+        :param query: a Q object
+        :param couch_query: string of javascript that is passed to couch as a mapfunction
+        :return: couch_query
+        """
+
+        ########
+        # Create a query document for permanent use
+        # couch_query = {
+        #     "_id": "_design/{field}".format(field=query.attribute),
+        #     "language": "javascript",
+        #     "views": {
+        #         "basic_query": {
+        #             "map": "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=query.attribute)
+        #         }
+        #     }
+        # }
+        couch_query = "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=query.attribute)
+
+        return couch_query
 
 
 ######################

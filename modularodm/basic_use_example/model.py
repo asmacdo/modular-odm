@@ -12,6 +12,9 @@ class User(StoredObject):
     def __repr__(self):
         return "<User: {0}>".format(self.username)
 
+    # def find(self):
+    #     return super(self.find, modelname='user')
+
 class Comment(StoredObject):
     _meta = {"optimistic": True}
     _id = fields.StringField(primary=True, index=True)
