@@ -47,7 +47,8 @@ class CouchStorage(Storage):
         :param kwargs:
         :return: results of the query
         """
-        return self.db.query(self._translate_query(query))
+        mapfun, argument = self._translate_query(query)
+        return self.db.query(mapfun, key=argument)
 
 
     def update(self, query, data):
@@ -72,33 +73,16 @@ class CouchStorage(Storage):
         #         }
         #     }
         # }
-        couch_query = "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=query.attribute)
+        argument = None
+        if isinstance(query, RawQuery):
+            attribute, operator, argument = \
+                query.attribute, query.operator, query.argument
 
-        return couch_query
+            if operator == 'eq':
+                #couch_query = "function(doc) {{\n  if ('{attribute}' in doc) {{\n    if(doc.{attribute} === '{argument}') {{\n    	emit(doc.{attribute}, null)\n    }}\n  }}\n}}".format(attribute=attribute, argument=argument)
+                couch_query = "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=attribute)
 
-
-######################
-    # String parsing a query into js is not ideal for production
-    # instead, it is better to submit the view to the database
-    # and let couch access the view that way.
-    # def _translate_query(self, query=None, couch_query=None):
-    #
-    #     couch_query = couch_query or {}
-    #
-    #     if isinstance(query, RawQuery):
-    #         attribute, operator, argument = \
-    #             query.attribute, query.operator, query.argument
-    #
-    #         if operator == 'eq':
-    #             query.operator = "=="
-    #
-    #         couch_query = '''
-    #             function(doc, emit) {
-    #                 return '{query.attribute}' === '{query.argument}'
-    #             }
-    #             '''.format(query=query)
-    #     return couch_query
-
+        return couch_query, argument
 
 
 ###################
