@@ -2,18 +2,40 @@ from couchdb.mapping import Mapping
 from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import RawQuery
+from modularodm.exceptions import NoResultsFound, MultipleResultsFound
 
 class CouchQuerySet(BaseQuerySet):
-    def __init__(self, schema, cursor):
+    def __init__(self, schema, view_results):
+
+        """Initialize CouchQuerySet
+        :param schema: ObjectMeta class defined by the use case's model, eg. User class
+        :param view_results: result object returned by Couchdb
+        """
 
         super(CouchQuerySet, self).__init__(schema)
-        self.data = cursor
+        self.data = view_results
 
     def __iter__(self, raw=False):
-        keys = [obj[self.primary] for obj in self.data]
+        keys = [obj.value[self.primary] for obj in self.data.rows]
         if raw:
             return keys
         return (self.schema.load(key) for key in keys)
+
+    def __getitem__(self, index, raw=False):
+        super(CouchQuerySet, self).__getitem__(index)
+        key = self.data[index][self.primary]
+        if raw:
+            return key
+        return self.schema.load(key)
+
+    def get_keys(self):
+        return list(self.__iter__(raw=True))
+
+    def __len__(self):
+        self.data.total_rows
+
+    count = __len__
+
 
 class CouchStorage(Storage):
 
@@ -43,23 +65,69 @@ class CouchStorage(Storage):
     def find(self, query=None, **kwargs):
         """
 
-        :param query: a Q object containing attribute, operator, argument
+        :param query: a RawQuery object containing attribute, operator, argument
         :param kwargs:
-        :return: results of the query
+        :return: ViewResults, a CouchDB object that results of the query
         """
         mapfun, argument = self._translate_query(query)
+
         return self.db.query(mapfun, key=argument)
 
+    def find_one(self, query=None, **kwargs):
+        """
+        :param query: query: a RawQuery object containing attribute, operator, argument
+        :param kwargs:
+        :return: an object of the class that called it.
+        """
+
+        mapfun, argument = self._translate_query(query)
+
+        matches = self.db.query(mapfun, key=argument)
+
+        if len(matches.rows) == 1:
+            return matches.rows[0].value
+
+        if len(matches.rows) == 0:
+            raise NoResultsFound()
+
+        raise MultipleResultsFound(
+            'Query for find_one must return exactly one result; '
+            'returned {0}'.format(matches.count())
+        )
+
+
+    def get(self, primary_name, key):
+        return self.store.find_one({primary_name: key})
 
     def update(self, query, data):
-        pass
+
+        """ Update a record that matches a query with the provided data
+        :param query: RawQuery object containing search terms
+        :param data: dict object {'<fieldname>': <'newvalue'>}
+        """
+
+        # Create a ViewResult
+        mapfun, argument = self._translate_query(query)
+        couch_view_results = self.db.query(mapfun, key=argument)
+
+        # Iterate through the rows of a result and change the appropriate rows
+        # TODO(asmacdo) fewer calls
+        for row in couch_view_results.rows:
+            for key in data:
+                if row.value.get(key) is not None:
+                    row.value[key] = data[key]
+                    self.db.save(row.value)
+
+        #TODO (asmacdo) add case for '_id'
+
+
 
     def _translate_query(self, query=None, couch_query=None):
         """
-        Convert a Q object to appropriate javascript for a couchdb map function
-        :param query: a Q object
+        Convert a RawQuery object to appropriate javascript for a couchdb map function and add appropriate args
+        :param query: a RawQuery object
         :param couch_query: string of javascript that is passed to couch as a mapfunction
-        :return: couch_query
+        :return: tuple containing a couchdb query and a search argument
         """
 
         ########
@@ -73,6 +141,7 @@ class CouchStorage(Storage):
         #         }
         #     }
         # }
+
         argument = None
         if isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -80,41 +149,6 @@ class CouchStorage(Storage):
 
             if operator == 'eq':
                 #couch_query = "function(doc) {{\n  if ('{attribute}' in doc) {{\n    if(doc.{attribute} === '{argument}') {{\n    	emit(doc.{attribute}, null)\n    }}\n  }}\n}}".format(attribute=attribute, argument=argument)
-                couch_query = "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=attribute)
+                couch_query = "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.{field}, doc)\n  }}\n}}".format(field=attribute)
 
         return couch_query, argument
-
-
-###################
-    #AHHHHHHHHHHHHHHHHHHHHHHHh
-    # def find(self, query=None, **kwargs):
-    #     couch_query = self._translate_query(query)
-    #     return self.db.find(couch_query)
-    #
-    # def _translate_query(self, query=None, couch_query=None):
-    #
-    #     couch_query = couch_query or {}
-
-
-
-
-#
-# User.find(Q('firstname', 'eq', 'brian')
-#
-#
-# {1, 2, 3}
-#
-#
-# def translate_to_js(query):
-#
-#     translate_map = {
-#         'eq': lambda q: '{query.attribute} === {query.argument}'.format(query=query)
-#     }
-#
-#     return translate_map[query.operator]
-#
-# '''
-# function(doc, emit) \{
-#     if doc.type == {collection} and {query.loperand} {operator}
-# \}
-# '''.format(collection=collection, query=query, operator=operator)
