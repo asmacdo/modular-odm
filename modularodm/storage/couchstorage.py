@@ -1,8 +1,8 @@
-from couchdb.mapping import Mapping
 from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import RawQuery
 from modularodm.exceptions import NoResultsFound, MultipleResultsFound
+from modularodm.query.querydialect import DefaultQueryDialect as Q
 
 class CouchQuerySet(BaseQuerySet):
     def __init__(self, schema, view_results):
@@ -32,7 +32,8 @@ class CouchQuerySet(BaseQuerySet):
         return list(self.__iter__(raw=True))
 
     def __len__(self):
-        self.data.total_rows
+        #may be the wrong field
+        return self.data.total_rows
 
     count = __len__
 
@@ -51,8 +52,13 @@ class CouchStorage(Storage):
         self.db = db
         self.collection = collection
 
-    def insert(self, primary_name, key, value):
 
+    def insert(self, primary_name, key, value):
+        """ Insert an item into the database
+        :param primary_name: name of the key that is primary
+        :param key: name of the primary key
+        :param value: information stored by the key
+        """
 
         if 'primary_name' not in value:
             value['primary_name'] = primary_name
@@ -62,9 +68,12 @@ class CouchStorage(Storage):
 
         self.db.save(value)
 
+    # Currently uses query instead of view. This allows custom queries but submitting a
+    # query to the database causes it to function as a 'temporary view' which is slow and should not be used
+    # in production. The alternative is to submit the query documents to the database, but this limits
+    # to only the documents that are saved there.
     def find(self, query=None, **kwargs):
         """
-
         :param query: a RawQuery object containing attribute, operator, argument
         :param kwargs:
         :return: ViewResults, a CouchDB object that results of the query
@@ -73,6 +82,7 @@ class CouchStorage(Storage):
 
         return self.db.query(mapfun, key=argument)
 
+    # TODO(asmacdo) make sure that this behaves as expected, specifically with multiple results or no results
     def find_one(self, query=None, **kwargs):
         """
         :param query: query: a RawQuery object containing attribute, operator, argument
@@ -97,8 +107,27 @@ class CouchStorage(Storage):
 
 
     def get(self, primary_name, key):
-        return self.store.find_one({primary_name: key})
+        return CouchStorage.find_one(self, Q(primary_name, 'eq', key))
 
+    #TODO (asmacdo) shares a lot of code with find_one
+    def remove(self, query=None):
+
+        mapfun, argument = self._translate_query(query)
+
+        matches = self.db.query(mapfun, key=argument)
+
+        if len(matches.rows) == 1:
+            return self.db.delete(matches.rows[0].value)
+
+        if len(matches.rows) == 0:
+            raise NoResultsFound()
+
+        raise MultipleResultsFound(
+            'Query for find_one must return exactly one result; '
+            'returned {0}'.format(matches.count())
+        )
+
+    #TODO (asmacdo) does this need a special case for '_id'
     def update(self, query, data):
 
         """ Update a record that matches a query with the provided data
@@ -111,19 +140,20 @@ class CouchStorage(Storage):
         couch_view_results = self.db.query(mapfun, key=argument)
 
         # Iterate through the rows of a result and change the appropriate rows
-        # TODO(asmacdo) fewer calls
-        docs_to_change = {}
         for row in couch_view_results.rows:
             for key in data:
                 if row.value.get(key) is not None:
                     row.value[key] = data[key]
-                    doc = row.value
+                    #TODO(asmacdo) fewer calls?
+                    self.db.save(row.value)
 
 
-        #TODO (asmacdo) add case for '_id'
 
 
 
+
+
+    #TODO (asmacdo) add more complicated functionality
     def _translate_query(self, query=None, couch_query=None):
         """
         Convert a RawQuery object to appropriate javascript for a couchdb map function and add appropriate args
@@ -132,17 +162,6 @@ class CouchStorage(Storage):
         :return: tuple containing a couchdb query and a search argument
         """
 
-        ########
-        # Create a query document for permanent use
-        # couch_query = {
-        #     "_id": "_design/{field}".format(field=query.attribute),
-        #     "language": "javascript",
-        #     "views": {
-        #         "basic_query": {
-        #             "map": "function(doc) {{\n  if ('{field}' in doc) {{\n    emit(doc.username, null)\n  }}\n}}".format(field=query.attribute)
-        #         }
-        #     }
-        # }
 
         argument = None
         if isinstance(query, RawQuery):

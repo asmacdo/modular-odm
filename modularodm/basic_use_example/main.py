@@ -9,6 +9,7 @@ USE_COUCH = True
 
 
 
+
 # Set model storage
 if USE_COUCH:
     #Remove old db and start a fresh instance
@@ -50,14 +51,14 @@ comment3.save()
 # db.save(create_basic_query("text"))
 
 # make a query from a Q
-q = Q('username', 'eq', 'austin')
+q = Q('username', 'eq', 'austing')
 
 #query database
 results = User.find(q)
 print "\n\n\n\n"
 
 if USE_COUCH:
-    print results.data.rows[0]
+    print "results ", results.data.rows[0].value
 else:
     print results.data[0]
 
@@ -68,4 +69,20 @@ print "before update", one_results
 print User.update(q, {'username': "newAustin"})
 new_q = Q('username', 'eq', 'newAustin')
 find2 = User.find(new_q)
-print find2.data.rows
+
+User.remove(new_q)
+
+results = User.find(new_q)
+print "\n\n\n\n"
+
+if USE_COUCH:
+    try:
+        print "results ", results.data.rows[0].value
+    except IndexError:
+        print "no data"
+else:
+    try:
+        results.data[0]
+        print "data"
+    except IndexError:
+        print "no data"
