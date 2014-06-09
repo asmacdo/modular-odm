@@ -37,14 +37,39 @@ class Benchmark_Couch(benchmark.Benchmark):
         self.db = self.couch.create('test')
         User2.set_storage(storage.CouchStorage(self.db, collection="user"))
         Comment2.set_storage(storage.CouchStorage(self.db, collection="comment"))
+        self.couch_id_list = []
+        self.couch_username_list = []
 
-    def test_add_doc(self):
-        u = User2(_id= create_rand_string(), username=create_rand_string(), password=create_rand_string())
+    def test_add_user(self):
+        new_id = create_rand_string()
+        self.couch_id_list.append(new_id)
+        u = User2(_id=new_id, username=create_rand_string(), password=create_rand_string())
         u.save()
 
-    # def test_add_doc_seq(self):
-    #     u = User2(_id=create_seq_string(), username=create_rand_string(), password=create_rand_string())
-    #     u.save()
+    def test_find_user_by_id(self):
+        if len(self.couch_id_list) > 0:
+            index = random.randrange(0, len(self.couch_id_list))
+            user_id = self.couch_id_list[index]
+            u = User2.find(Q("_id", "eq", user_id))
+        else:
+            pass
+
+    def test_find_user_by_username(self):
+        if len(self.couch_username_list) > 0:
+            index = random.randrange(0, len(self.couch_username_list))
+            username = self.couch_username_list[index]
+            u = User2.find(Q("username", "eq", username))
+        else:
+            pass
+
+    def test_update_field_by_id(self):
+        if len(self.couch_id_list) > 0:
+            index = random.randrange(0, len(self.couch_id_list))
+            user_id = self.couch_id_list[index]
+            q = Q("_id", "eq", user_id)
+            User2.update(q, {'username': create_rand_string()})
+        else:
+            pass
 
     def tearDown(self):
         self.couch.delete('test')
@@ -60,11 +85,40 @@ class Benchmark_Mongo(benchmark.Benchmark):
         self.collection = self.db.test_collection
         User.set_storage(storage.MongoStorage(self.db, collection="user"))
         Comment.set_storage(storage.MongoStorage(self.db, collection="comment"))
+        self.mongo_id_list = []
+        self.mongo_username_list = []
 
-
-    def test_add_doc(self):
-        u = User(_id=create_rand_string(), username=create_rand_string(), password=create_rand_string())
+    def test_add_user(self):
+        new_id = create_rand_string()
+        self.mongo_id_list.append(new_id)
+        u = User(_id=new_id, username=create_rand_string(), password=create_rand_string())
         u.save()
+
+    def test_find_user_by_id(self):
+        if len(self.mongo_id_list) > 0:
+            index = random.randrange(0, len(self.mongo_id_list))
+            user_id = self.mongo_id_list[index]
+            u = User.find(Q("_id", "eq", user_id))
+        else:
+            pass
+
+    def test_find_user_by_username(self):
+        if len(self.mongo_username_list) > 0:
+            index = random.randrange(0, len(self.mongo_username_list))
+            username = self.mongo_id_list[index]
+            u = User.find(Q("username", "eq", username))
+        else:
+            pass
+
+    def test_update_field_by_id(self):
+        if len(self.mongo_id_list) > 0:
+            index = random.randrange(0, len(self.mongo_id_list))
+            user_id = self.mongo_id_list[index]
+            q = Q("_id", "eq", user_id)
+            User.update(q, {'username': create_rand_string()})
+        else:
+            pass
+
 
     # def test_add_doc_seq(self):
     #     u = User(_id=create_rand_string(), username=create_rand_string(), password=create_rand_string())
