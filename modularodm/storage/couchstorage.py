@@ -112,11 +112,13 @@ class CouchStorage(Storage):
 
         # Iterate through the rows of a result and change the appropriate rows
         # TODO(asmacdo) fewer calls
+        docs_to_change = {}
         for row in couch_view_results.rows:
             for key in data:
                 if row.value.get(key) is not None:
                     row.value[key] = data[key]
-                    self.db.save(row.value)
+                    doc = row.value
+
 
         #TODO (asmacdo) add case for '_id'
 
